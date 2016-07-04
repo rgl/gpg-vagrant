@@ -2,22 +2,14 @@
 set -eux
 umask 0077
 
-EMAIL=$1
-NAME=$2
+config_domain=$(hostname --domain)
+EMAIL="$USER@$config_domain"
+NAME=${USER^}
+GNUPGHOME=~/.gnupg
 
-export GNUPGHOME=$PWD/gnupg-home-$EMAIL
+killall -u $USER gpg-agent || true
 
 rm -rf $GNUPGHOME && install -d -m 700 $GNUPGHOME
-
-cat<<EOF>$GNUPGHOME/env.sh
-# source this into the current shell to use this GNUPGHOME:
-# source env.sh
-EMAIL='$EMAIL'
-NAME='$NAME'
-export GNUPGHOME='$GNUPGHOME'
-config_fqdn=\$(hostname --fqdn)
-config_domain=\$(hostname --domain)
-EOF
 
 cat <<EOF >$GNUPGHOME/gpg.conf
 # enter the passwords on stdin.
@@ -51,8 +43,6 @@ cat <<EOF >$GNUPGHOME/gpg-agent.conf
 # allow to enter the passwords on stdin.
 allow-loopback-pinentry
 EOF
-
-killall gpg-agent || true
 
 # create a certificate and signing key.
 expect<<EOF
@@ -91,7 +81,7 @@ EOF
 gpg2 --list-secret-keys
 gpg2 --list-sigs
 
-gpg2 --armor --export $EMAIL >$GNUPGHOME/$EMAIL-public.pem
-gpg2 --list-packets $GNUPGHOME/$EMAIL-public.pem
-
-killall gpg-agent || true
+# export the public key (we'll use it later).
+umask 0022
+gpg2 --armor --export $EMAIL >/tmp/$EMAIL.pem
+gpg2 --list-packets /tmp/$EMAIL.pem

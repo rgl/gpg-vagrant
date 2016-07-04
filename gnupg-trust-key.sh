@@ -1,14 +1,11 @@
 #!/bin/bash
 set -eux
-umask 0077
 
-EMAIL=$1
-TRUSTEE_EMAIL=$2
-TRUST=$3
-
-export GNUPGHOME=$PWD/gnupg-home-$EMAIL
-TRUSTEE_GNUPGHOME=$PWD/gnupg-home-$TRUSTEE_EMAIL
-TRUSTEE_KEY_PATH=$TRUSTEE_GNUPGHOME/$TRUSTEE_EMAIL-public.pem
+config_domain=$(hostname --domain)
+EMAIL="$USER@$config_domain"
+TRUSTEE_EMAIL=$1
+TRUST=$2
+TRUSTEE_KEY_PATH=/tmp/$TRUSTEE_EMAIL.pem
 
 gpg2 --list-packets $TRUSTEE_KEY_PATH
 

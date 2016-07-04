@@ -28,28 +28,35 @@ apt-get install -y --no-install-recommends haveged
 apt-get install -y --no-install-recommends gnupg2
 apt-get install -y --no-install-recommends psmisc expect
 
-# create Alice and Bob keychains.
-sudo -sHu vagrant bash /vagrant/gnupg-recreate-keychains.sh "alice.doe@$config_domain" 'Alice Doe'
-sudo -sHu vagrant bash /vagrant/gnupg-recreate-keychains.sh "bob.doe@$config_domain" 'Bob Doe'
+# create the users and their keychains.
+USERS="alice bob"
+for user in $USERS; do
+    addgroup $user
+    adduser --ingroup $user --gecos ${user^} --shell /bin/bash $user
+    sudo -sHu $user bash /vagrant/gnupg-recreate-keychains.sh
+done
 
 # make Alice sign a document.
-ALICE_DOCUMENT=alice-document.txt
+ALICE_DOCUMENT=/tmp/alice-document.txt
 echo 'Hello World' >$ALICE_DOCUMENT
-sudo -sHu vagrant bash /vagrant/gnupg-sign.sh "alice.doe@$config_domain" $ALICE_DOCUMENT
+sudo -sHu alice gpg2 --detach-sign --armor --output "$ALICE_DOCUMENT.sig" $ALICE_DOCUMENT
 
-# Bob should not trust Alice signed document because he didn't yet trust her.
-sudo -sHu vagrant bash /vagrant/gnupg-verify.sh "bob.doe@$config_domain" $ALICE_DOCUMENT || true
+# Bob should not trust Alice signed document because he didn't yet have her public key nor he trusts her yet.
+sudo -sHu bob gpg2 --verify "$ALICE_DOCUMENT.sig" $ALICE_DOCUMENT || true
 
 # make Bob ultimately trust Alice.
-sudo -sHu vagrant bash /vagrant/gnupg-trust-key.sh "bob.doe@$config_domain" "alice.doe@$config_domain" 5
+# this is made by importing Alice' public key into bob keychain
+# and setting the trust level.
+sudo -sHu bob /vagrant/gnupg-trust-key.sh "alice@$config_domain" 5
 
 # Bob should now trust Alice signed document because he ultimately trusts her.
 # BUT you'll still see a warning telling Bob that the Alice key does
 # not have any certified signature, which we'll do next.
-sudo -sHu vagrant bash /vagrant/gnupg-verify.sh "bob.doe@$config_domain" $ALICE_DOCUMENT
+sudo -sHu bob gpg2 --verify "$ALICE_DOCUMENT.sig" $ALICE_DOCUMENT
 
-# make Bob sign the Alice key and recheck the document signature.
-sudo -sHu vagrant bash /vagrant/gnupg-sign-key.sh "bob.doe@$config_domain" "alice.doe@$config_domain"
-sudo -sHu vagrant bash /vagrant/gnupg-verify.sh "bob.doe@$config_domain" $ALICE_DOCUMENT
+# make Bob sign the Alice key and recheck the document signature,
+# which should not show any warning. 
+sudo -sHu bob /vagrant/gnupg-sign-key.sh "alice@$config_domain"
+sudo -sHu bob gpg2 --verify "$ALICE_DOCUMENT.sig" $ALICE_DOCUMENT
 
 echo 'SUCCESS!'
